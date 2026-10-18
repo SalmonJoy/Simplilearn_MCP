@@ -1,0 +1,44 @@
+# Local credentials and environment overrides; keep the setup template.
+.env
+.env.*
+!.env.example
+
+# Python virtual environments and compiled files.
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Test, lint, type-check and coverage artifacts.
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pytype/
+.tox/
+.nox/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# Python packaging output.
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Local logs, downloaded tooling and optional Node dependencies.
+.logs/
+logs/
+*.log
+node_modules/
+
+# Personal editor settings, temporary files and OS metadata.
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+Desktop.ini

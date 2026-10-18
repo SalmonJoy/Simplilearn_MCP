@@ -1,0 +1,252 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;600;700;800&display=swap");
+:root {
+  color-scheme: light;
+  --ink: #16342e;
+  --muted: #61736b;
+  --paper: #f5f6f0;
+  --line: #dce3d8;
+  --green: #275d49;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "DM Sans", system-ui, sans-serif;
+}
+main {
+  max-width: 1100px;
+  margin: auto;
+  padding: 30px 32px;
+}
+nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 25px;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+a {
+  color: var(--green);
+  text-decoration: none;
+}
+header {
+  padding: 45px 0 26px;
+}
+.eyebrow {
+  color: var(--green);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+}
+h1 {
+  font-family: Manrope, system-ui, sans-serif;
+  font-size: clamp(30px, 5vw, 48px);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  margin: 12px 0;
+}
+p {
+  color: var(--muted);
+  line-height: 1.6;
+}
+button,
+textarea {
+  font: inherit;
+}
+button {
+  cursor: pointer;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  padding: 11px 16px;
+}
+button:hover {
+  border-color: var(--green);
+}
+button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+.examples {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+.examples button {
+  font-size: 13px;
+  background: transparent;
+}
+#messages {
+  min-height: 240px;
+  max-height: 540px;
+  overflow: auto;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 22px;
+  margin-bottom: 24px;
+}
+.message {
+  line-height: 1.65;
+  white-space: pre-wrap;
+  padding: 14px 16px;
+  border-radius: 9px;
+  margin-bottom: 14px;
+  max-width: 90%;
+}
+.assistant {
+  background: #f3f6f0;
+}
+.user {
+  background: #e2eddf;
+  margin-left: auto;
+}
+label {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+.input-row {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+}
+textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #fff;
+  color: var(--ink);
+  outline: none;
+}
+textarea:focus {
+  border-color: var(--green);
+}
+.primary {
+  background: var(--green);
+  color: white;
+  border: 0;
+  min-width: 110px;
+}
+.quiet {
+  background: transparent;
+  font-size: 12px;
+  padding: 8px;
+}
+.footer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+}
+.error {
+  color: #a33326;
+}
+details {
+  font-size: 12px;
+  border-top: 1px solid var(--line);
+  padding: 12px 0;
+  margin-bottom: 12px;
+}
+summary {
+  cursor: pointer;
+  color: var(--green);
+}
+pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: #f2f4ee;
+  border-radius: 8px;
+  padding: 12px;
+  max-height: 300px;
+  overflow: auto;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 24px;
+}
+.widget {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 24px;
+  min-width: 0;
+}
+.widget h3 {
+  font-size: 15px;
+  margin: 0 0 20px;
+}
+.value {
+  font:
+    800 52px Manrope,
+    system-ui,
+    sans-serif;
+  letter-spacing: -0.05em;
+}
+.chart-wrap {
+  position: relative;
+  height: 270px;
+}
+.table-wrap {
+  overflow: auto;
+  max-height: 360px;
+}
+table {
+  border-collapse: collapse;
+  font-size: 12px;
+  width: 100%;
+  text-align: left;
+}
+th,
+td {
+  padding: 10px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+th {
+  color: var(--muted);
+}
+.meta {
+  font-size: 12px;
+}
+.section-title {
+  margin: 32px 0 0;
+  font-family: Manrope, system-ui, sans-serif;
+}
+.empty {
+  padding: 35px 0;
+  color: var(--muted);
+}
+@media (max-width: 650px) {
+  main {
+    padding: 22px 18px;
+  }
+  .grid {
+    grid-template-columns: 1fr;
+  }
+  .input-row {
+    flex-direction: column;
+  }
+  .message {
+    max-width: 100%;
+  }
+  .footer-row {
+    align-items: flex-start;
+  }
+  header {
+    padding-top: 30px;
+  }
+}

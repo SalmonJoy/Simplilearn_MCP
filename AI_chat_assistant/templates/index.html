@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>MCP Learning Chat</title>
+    <link rel="stylesheet" href="/static/style.css" />
+    <script src="/static/chat.js" defer></script>
+  </head>
+  <body>
+    <main>
+      <nav>
+        <strong>MCP / LEARNING LAB</strong
+        ><a href="http://127.0.0.1:8005">Dashboard ↗</a>
+      </nav>
+      <header>
+        <span class="eyebrow">01 — CONVERSATIONS & TOOLS</span>
+        <h1>Your workplace assistant.</h1>
+        <p>
+          Ask about employees and company items. Open a tool trace to see MCP at
+          work.
+        </p>
+      </header>
+      <div class="examples">
+        <button type="button" data-prompt="Show employee counts by department.">
+          Employees by department</button
+        ><button type="button" data-prompt="What items are assigned to EMP001?">
+          EMP001’s items</button
+        ><button type="button" data-prompt="List available laptops.">
+          Available laptops
+        </button>
+      </div>
+      <section id="messages" aria-live="polite" aria-label="Conversation">
+        <article class="message assistant">
+          Ready when you are. Try a question above, or request a specific
+          employee or inventory change.
+        </article>
+      </section>
+      <form id="chat-form">
+        <label for="message">Your message</label>
+        <div class="input-row">
+          <textarea
+            id="message"
+            required
+            maxlength="4000"
+            rows="2"
+            placeholder="What would you like to know or change?"
+          ></textarea
+          ><button class="primary" id="send" type="submit">Send →</button>
+        </div>
+      </form>
+      <div class="footer-row">
+        <p id="status" role="status">
+          Changes requested in chat update the dummy records.
+        </p>
+        <button id="clear" class="quiet" type="button">
+          Clear conversation
+        </button>
+      </div>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>MCP Dashboard Studio</title>
+    <link rel="stylesheet" href="/static/style.css" />
+    <script
+      src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"
+      defer
+    ></script>
+    <script src="/static/dashboard.js" defer></script>
+  </head>
+  <body>
+    <main>
+      <nav>
+        <strong>MCP / LEARNING LAB</strong
+        ><a href="http://127.0.0.1:8004">Chat assistant ↗</a>
+      </nav>
+      <header>
+        <span class="eyebrow">02 — DATA INTO PERSPECTIVE</span>
+        <h1>A dashboard, in your words.</h1>
+        <p>
+          Describe what you want to see. MCP retrieves the records, AI chooses a
+          layout, and Python calculates the numbers.
+        </p>
+      </header>
+      <div class="examples">
+        <button
+          type="button"
+          data-prompt="Show employee count by department and status."
+        >
+          People overview</button
+        ><button
+          type="button"
+          data-prompt="Show available devices by item type and a table of assigned laptops and their owners."
+        >
+          Device overview</button
+        ><button
+          type="button"
+          data-prompt="Show total employees, total items, and available goodies by type."
+        >
+          Company snapshot
+        </button>
+      </div>
+      <form id="dashboard-form">
+        <label for="instruction">Describe your dashboard</label>
+        <div class="input-row">
+          <textarea
+            id="instruction"
+            required
+            maxlength="4000"
+            rows="2"
+            placeholder="Show employee counts by department and available devices by type…"
+          ></textarea
+          ><button class="primary" id="generate" type="submit">
+            Generate →
+          </button>
+        </div>
+      </form>
+      <p id="status" class="meta" role="status">
+        Cards, bar charts, and tables · current records · count metrics
+      </p>
+      <h2 id="title" class="section-title"></h2>
+      <section id="dashboard" class="grid" aria-live="polite"></section>
+      <p id="note" class="meta"></p>
+      <details id="trace" hidden>
+        <summary>MCP calls & layout JSON</summary>
+        <pre></pre>
+      </details>
+    </main>
+  </body>
+</html>
