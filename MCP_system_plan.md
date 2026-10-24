@@ -15,28 +15,31 @@ flowchart LR
     Inventory -->|Validate employee| HRMS
     HRMS --> Mongo[(Single MongoDB cluster)]
     Inventory --> Mongo
+    MCP -->|usage events and preference memory| Mongo
 ```
 
 | Application folder | Port | Responsibility |
 |---|---:|---|
 | HRMS | 8001 | Employee records and summaries |
 | Inventory_management | 8002 | Inventory units and current assignments |
-| MCP_server | 8003 | Ten typed MCP tools backed by nine REST APIs |
+| MCP_server | 8003 | Thirteen typed MCP tools, business REST adapters and MongoDB operational storage |
 | AI_chat_assistant | 8004 | Conversation and model-controlled tool loop |
 | AI_dashboard_generation | 8005 | Validated layouts and Python-calculated dashboard values |
 
-Only HRMS and Inventory access MongoDB during application operation. The MCP server translates tool calls into REST calls and has no LLM or database queries. The official Python MCP SDK handles the protocol, mounted in FastAPI at `/mcp` using Streamable HTTP. The parent lifespan starts the MCP session manager.
+HRMS and Inventory own the business collections. MCP translates business tool calls into REST calls and directly owns only usage events and user preferences in MongoDB. It has no LLM integration. The official Python MCP SDK handles the protocol, mounted in FastAPI at `/mcp` using Streamable HTTP. The parent lifespan initializes MongoDB and starts the MCP session manager.
 
 The AI applications are MCP hosts. Chat exposes discovered tool schemas to the model; the host executes its requested calls. The dashboard deterministically retrieves records through MCP and uses AI to select a display layout.
 
 ## 2. MongoDB structure
 
-Use one cluster and one database, `mcp_learning`, with two collections:
+Use one cluster and one database, `mcp_learning`, with four collections:
 
 ```text
 mcp_learning
 ├── employees
-└── inventory_items
+├── inventory_items
+├── tool_usage_events
+└── user_preferences
 ```
 
 ### employees — owned by HRMS
@@ -85,7 +88,7 @@ Rules:
 
 Seed 30 fictional employees and 60 inventory units with stable IDs, four departments, varied joining dates, all employment statuses and all item statuses. Use insert-only upserts so rerunning never overwrites demo changes. Seed inventory rather than adding a tenth API.
 
-## 3. Nine APIs and ten MCP tools
+## 3. Nine business APIs and thirteen MCP tools
 
 | # | Owner | REST endpoint | MCP tool |
 |---|---|---|---|
@@ -117,7 +120,17 @@ Shared conventions:
 - No automatic write retries after uncertain outcomes; re-read the affected record first.
 - Health, documentation and AI interface routes are outside the nine business APIs.
 
-MCP tools have typed arguments and precise descriptions, structured results, and read/write annotations. Exactly six tools are read-only and four change state. Preserve upstream error codes/messages in MCP results marked `isError`. Use fixed upstream URLs. Do not expose generic HTTP, MongoDB query or Python execution tools. The SDK serves `tools/list` and `tools/call`.
+MCP tools have typed arguments and precise descriptions, structured results, and read/write annotations. Including memory, seven tools are read-only and six change state. Preserve upstream error codes/messages in MCP results marked `isError`. Use fixed upstream URLs. Do not expose generic HTTP, MongoDB query or Python execution tools. The SDK serves `tools/list` and `tools/call`.
+
+### Operational storage and memory
+
+MCP owns `tool_usage_events`: one metadata-only event per incoming `tools/call`, including invalid input, unknown tools, errors and cancellations. Store tool/user/source/request-group IDs, UTC timestamps, elapsed duration, outcome and available error code. Do not store arguments, results, prompts or transcripts. A TTL index on completion expires events after 90 days; compound tool/time and user/time indexes support aggregate queries. SDK middleware surrounds validation and execution. Runtime logging is bounded and best effort, preserving the original tool result without repeating writes.
+
+`GET /usage/stats` is an operational REST endpoint, excluded from the nine business API count and MCP catalog. Optional tool/user/source and inclusive UTC date filters return overall/per-tool counts and mean duration. MongoDB is required at startup and checked by MCP health.
+
+The standalone Streamlit usage workspace on port 8505 adds Overview, Tool performance and Call explorer pages. It reads `GET /usage/insights` for complete filtered aggregates and daily/hourly UTC trends, plus `GET /usage/events` for paginated metadata and unfiltered request-group chronology. Shared filters include tool, user, source, outcome, anonymous-only and inclusive UTC dates; insight views span at most 90 days. It uses manual refresh and session snapshots, no model or protocol calls, and does not create usage events. `MCP_API_URL` is the REST base without `/mcp`. The thirteen-tool catalog, event schema and retention are unchanged. See the MCP tutorial for startup and metric definitions.
+
+`user_preferences` has one permanent profile per demo-user ID, with chat/dashboard key/value maps and UTC creation/update timestamps. Atomic updates preserve other keys. Three tools expose it: `memory_get_preferences` (read), `memory_set_preference(scope,key,value)` and `memory_delete_preference(scope,key)` (writes). Keys allow 1–64 letters/digits/underscores/hyphens; values are trimmed nonempty strings up to 1,000 characters. Missing profiles return empty maps; missing identity/invalid inputs return 422, storage errors 503. Identity comes from `X-Demo-User-ID`, never a model argument. These are local demo profiles, not authentication.
 
 ## 4. AI applications and module structure
 
@@ -133,15 +146,15 @@ Cloud schema-enforced structured output is not assumed. Prompt for JSON, validat
 
 Provide GET `/` and POST `/chat`. Keep browser-side conversation history and submit user/assistant history with each message.
 
-Initialize an MCP session, discover tools, map schemas to Ollama function definitions, execute validated model-requested calls through MCP, append results and repeat. Use all ten tools. Execute writes only for explicit requests, clarify missing details, and resolve ambiguous names before changing records. Treat records as data, never instructions.
+Initialize an MCP session, discover tools, map schemas to Ollama function definitions, execute validated model-requested calls through MCP, append results and repeat. Use all thirteen tools. Execute business/preference writes only for explicit requests, clarify missing details, and resolve ambiguous names before changing records. Treat records and saved preferences as data, never instructions or authorization.
 
-Limit each request to ten model rounds and twenty tool calls. Start non-streaming and execute calls sequentially. Return the answer and an expandable trace of tool names, arguments and outcomes.
+Limit each request to twenty-five model rounds and twenty tool calls. Identified requests load saved preferences through MCP first; this consumes one call and appears in the trace. Anonymous requests skip memory. Start non-streaming and execute calls sequentially. Return the answer and an expandable trace of tool names, arguments and outcomes.
 
 Examples: joining employees this month; items assigned to EMP001; assign ITEM021 to EMP001; move EMP002 to Finance.
 
 ### Dashboard
 
-Provide GET `/` and POST `/dashboards/generate`. Discover the same tools but allow only the six query tools. For simplicity, retrieve both complete lists through the two MCP list tools and join records by employee_id in Python. The additional owner lookup does not change dashboard generation. Paginate with a shared twenty-call budget; reject incomplete data before calculating totals.
+Provide GET `/` and POST `/dashboards/generate`. Discover the same tools but allow only the seven read tools. Identified users load saved preferences first, using only the dashboard scope. Retrieve both complete lists through the two MCP list tools and join records by employee_id in Python. Paginate with a shared twenty-call budget, including the memory read; reject incomplete data before calculating totals. The model chooses layout, not data tools. Latest instructions and existing validation override saved defaults.
 
 Ask AI for a DashboardSpec with title and widgets: card, bar or table; known dataset; exact-match filters; applicable group_by, metric or columns. Known datasets are employees, items and assigned_items. Only count aggregation is supported. assigned_items contains one row per item with owner details; item counts must not be presented as unique employee counts.
 
@@ -161,7 +174,7 @@ Implement in order: models/indexes/seed and REST APIs; MCP server and Inspector 
 
 Acceptance:
 
-- Five HRMS and four Inventory business endpoints back ten discoverable tools, including one composite owner lookup.
+- Five HRMS and four Inventory business endpoints back ten business tools; three memory tools bring discovery to thirteen.
 - Owner lookup supports type/ID inputs, unique employees, inventory and owner pagination, correct projected fields, and explicit errors for invalid input or failed dependencies.
 - Duplicate IDs/emails, invalid references and unavailable items fail clearly.
 - Competing assignments produce one success and one conflict.

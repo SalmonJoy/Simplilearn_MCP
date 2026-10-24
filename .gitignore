@@ -3,6 +3,9 @@
 .env.*
 !.env.example
 
+# Streamlit theme is tracked; local secrets never are.
+**/.streamlit/secrets.toml
+
 # Python virtual environments and compiled files.
 .venv/
 venv/
@@ -16,10 +19,13 @@ __pycache__/
 .pytype/
 .tox/
 .nox/
+.cache/
 .coverage
 .coverage.*
 coverage.xml
 htmlcov/
+test-results/
+junit*.xml
 
 # Python packaging output.
 build/
@@ -32,6 +38,21 @@ dist/
 logs/
 *.log
 node_modules/
+*.pid
+*.pid.lock
+nohup.out
+
+# Local MongoDB backups and exported data, not application seed code.
+/dump/
+/mongodump/
+/exports/
+
+# Machine-specific assistant settings; keep shared skills versionable.
+.claude/settings.local.json
+
+# Installed Streamlit skill links point into this machine's ignored .venv.
+/.agents/skills/developing-with-streamlit
+/.claude/skills/developing-with-streamlit
 
 # Personal editor settings, temporary files and OS metadata.
 .vscode/

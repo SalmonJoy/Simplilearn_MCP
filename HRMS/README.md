@@ -2,7 +2,11 @@
 
 [Project setup](../README.md#2-install-the-prerequisites) · [Next: Inventory](../Inventory_management/README.md)
 
+[Employee UI guide](#start-the-streamlit-employee-ui) · [Tool-usage insights](../MCP_server/README.md#streamlit-tool-usage-insights) · [Git/local-file guide](../README.md#8-keep-local-files-out-of-git)
+
 This app stores employee records and exposes five normal REST operations. It contains no LLM or MCP server. Later, MCP tools call these same operations, so you can understand and test the business API before adding AI.
+
+The API runs on **8001** and its optional Streamlit UI on **8501**. Direct Swagger/Streamlit REST requests are not MCP tool calls and therefore do not appear in MCP usage statistics. Calls through the MCP server are recorded in its operational event collection; HRMS continues to own only employee data.
 
 ## 1. Start with the prerequisites
 
@@ -18,6 +22,37 @@ Set-Location C:\Salmon\Simplilearn\MCP
 Use your own project location if different. Open [Swagger](http://127.0.0.1:8001/docs). Leave this terminal running and use another for the exercises. Ctrl+C stops HRMS.
 
 [config.py](config.py) reads `MONGODB_URI` and `MONGODB_DATABASE` (default `mcp_learning`) from the root configuration. HRMS creates its indexes at startup, so MongoDB must be reachable then. `/health` also pings MongoDB.
+
+### Start the Streamlit employee UI
+
+This optional frontend uses the same five APIs. Start HRMS as above, then run the UI in another PowerShell terminal at the repository root. Install the updated root requirements first if your environment predates the UI:
+
+```powershell
+uv pip install --python .venv\Scripts\python.exe -r requirements-dev.txt
+.venv\Scripts\python.exe -m streamlit run HRMS/ui/main.py --server.address 127.0.0.1 --server.port 8501
+```
+
+Without uv, install with `.venv\Scripts\python.exe -m pip install -r requirements-dev.txt` in a pip-created environment. Open [the HRMS UI](http://127.0.0.1:8501); stop it with Ctrl+C. Its HTTP client uses root `HRMS_URL`, default `http://127.0.0.1:8001`. It has no direct MongoDB, MCP or Ollama dependency. `run.py` does not launch this additional Streamlit process.
+
+The sidebar contains three pages:
+
+- **Overview:** four bordered cards show total, active, joining and inactive counts, followed by department and joining-month chart panels. Department and visible status choices use the summary endpoint; optional inclusive date bounds are under **More filters**. Counts cover the entire matching dataset. Use the header's Refresh action for current records.
+- **Employee directory:** search by name, exact department/status, or optional joining-date bounds under **More filters**. Apply filters to reset the offset. The table toolbar shows matched count, page sizes 20/50/100, and Previous/Next; changing page size resets to the first page. The ID column stays pinned and joining dates are formatted for reading. Select an employee by ID from the current page or use exact-ID lookup. **Profile** shows contact/role details, a status badge and timestamps under **Record details**. Switch to **Edit details** to open the form; the ID is immutable and only changed fields are sent.
+- **Add employee:** grouped **Identity and contact** and **Role and joining** fields use the existing Pydantic validation and default status to joining. Status choices are visible. Success shows the created record and an **Open in directory** action. Submitting creates a persistent dummy record; ordinary widget reruns and navigation do not create another one.
+
+Create/edit forms preserve values on errors. Duplicate IDs/emails, invalid fields and unavailable HRMS produce readable feedback. A save with no changed fields sends no PATCH. There is no persistent API-data cache; use Refresh or Reload employee to read current data. Form baselines are held only in the current Streamlit session. Reload employee discards unsaved edit values and starts from the current backend record.
+
+If a write outcome is uncertain, further submission is blocked until you reload/check that employee. The write may already have completed; no automatic write retry occurs. After a successful edit, the directory and details are reloaded. For a newly created record, use the directory to refresh/edit it.
+
+The spacious light/purple workspace uses native Streamlit components and [the tracked theme configuration](../.streamlit/config.toml), including chart colors, sidebar, borders and typography. No custom CSS or HTML is injected. The entry point stays [ui/main.py](ui/main.py); direct page scripts live in [ui/app_pages](ui/app_pages/), reusable forms/profile presentation in [ui/components.py](ui/components.py), and edit handling in [ui/employee_editor.py](ui/employee_editor.py). [ui/state.py](ui/state.py) initializes session defaults and holds navigation callbacks. Every HTTP request still goes through [ui/services/hrms_client.py](ui/services/hrms_client.py). Public page URLs remain `/`, `/employees`, and `/add-employee`. Keep launching from the root so both imports and the theme resolve correctly.
+
+Run the UI and HTTP-client tests without live services:
+
+```powershell
+.venv\Scripts\python.exe -m pytest -q tests/test_hrms_ui.py
+```
+
+These AppTest exercises use the actual REST handlers backed by in-memory MongoDB and mocked HTTP transport. To troubleshoot a blank/unavailable UI, check the Streamlit terminal, port 8501, root working directory, and `HRMS_URL`; opening the UI does not start the API for you.
 
 ## 2. Follow the request through the modules
 

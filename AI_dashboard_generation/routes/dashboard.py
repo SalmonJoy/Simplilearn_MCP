@@ -14,4 +14,4 @@ def index():
 
 @router.post("/dashboards/generate")
 async def generate_dashboard(body: GenerateRequest):
-    return await generate(body.instruction)
+    return await generate(body.instruction, user_id=body.user_id)

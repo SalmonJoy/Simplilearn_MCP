@@ -4,11 +4,13 @@ import json
 from contextlib import asynccontextmanager
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from uuid import uuid4
 import jsonschema
 import httpx
 from fastapi import HTTPException
 from mcp import ClientSession
 from mcp.client.streamable_http import streamable_http_client
+from mcp.shared._httpx_utils import create_mcp_http_client
 from settings import env
 
 READ_TOOLS = {
@@ -18,6 +20,7 @@ READ_TOOLS = {
     "inventory_list_items",
     "inventory_get_item",
     "inventory_get_item_owners",
+    "memory_get_preferences",
 }
 
 
@@ -26,15 +29,19 @@ def today():
 
 
 @asynccontextmanager
-async def mcp_connection():
+async def mcp_connection(*, user_id=None, client_app="unknown"):
     try:
-        async with streamable_http_client(
-            env("MCP_URL", "http://127.0.0.1:8003/mcp")
-        ) as (read, write):
-            async with ClientSession(read, write) as session:
-                await session.initialize()
-                discovered = await session.list_tools()
-                yield session, {tool.name: tool for tool in discovered.tools}
+        headers = {"X-MCP-Client": client_app, "X-MCP-Request-ID": str(uuid4())}
+        if user_id:
+            headers["X-Demo-User-ID"] = user_id
+        async with create_mcp_http_client(headers=headers) as client:
+            async with streamable_http_client(
+                env("MCP_URL", "http://127.0.0.1:8003/mcp"), http_client=client
+            ) as (read, write):
+                async with ClientSession(read, write) as session:
+                    await session.initialize()
+                    discovered = await session.list_tools()
+                    yield session, {tool.name: tool for tool in discovered.tools}
     except HTTPException:
         raise
     except ExceptionGroup as exc:
@@ -72,6 +79,35 @@ def ollama_tools(tools):
         }
         for tool in tools.values()
     ]
+
+
+async def load_preferences(session, tools, user_id, trace, *, scope=None):
+    """An identified request must distinguish unavailable memory from empty memory."""
+    if user_id is None:
+        return {}
+    data, error = await call_tool(session, tools, "memory_get_preferences", {})
+    if not error and (
+        not isinstance(data, dict) or not isinstance(data.get("preferences"), dict)
+    ):
+        error = True
+    if error:
+        raise HTTPException(
+            503,
+            "Saved preferences could not be loaded. Check MCP and MongoDB before trying again.",
+        )
+    preferences = data["preferences"]
+    if scope:
+        preferences = {scope: preferences.get(scope, {})}
+        data = {"user_id": user_id, "preferences": preferences}
+    trace.append(
+        {
+            "tool": "memory_get_preferences",
+            "arguments": {},
+            "is_error": False,
+            "result": data,
+        }
+    )
+    return preferences
 
 
 async def call_tool(session, tools, name, arguments):

@@ -15,6 +15,8 @@ from HRMS.main import app as hrms
 from Inventory_management.main import app as inventory
 from Inventory_management.services import inventory_service
 from MCP_server.tools.business_tools import register_tools
+from MCP_server.tools.memory_tools import register_memory_tools
+from MCP_server.usage_middleware import usage_middleware
 from ai_runtime import READ_TOOLS, call_tool
 from AI_chat_assistant.schemas import ChatRequest
 from AI_chat_assistant.services import chat_service
@@ -44,6 +46,8 @@ def mcp_url(clients, seeded, monkeypatch):
 
     app = FastAPI(lifespan=lifespan)
     register_tools(server, lambda: app.state.client)
+    server.middleware.append(usage_middleware(lambda: seeded.tool_usage_events))
+    register_memory_tools(server, lambda: seeded.user_preferences)
     app.mount("/", server.streamable_http_app(json_response=True))
     sock = socket.socket()
     sock.bind(("127.0.0.1", 0))
@@ -67,17 +71,27 @@ def mcp_url(clients, seeded, monkeypatch):
 
 
 @asynccontextmanager
-async def connect(url):
-    async with streamable_http_client(url) as (read, write):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-            tools = {tool.name: tool for tool in (await session.list_tools()).tools}
-            yield session, tools
+async def connect(url, **kwargs):
+    from mcp.shared._httpx_utils import create_mcp_http_client
+    from uuid import uuid4
+
+    headers = {
+        "X-MCP-Client": kwargs.get("client_app", "unknown"),
+        "X-MCP-Request-ID": str(uuid4()),
+    }
+    if kwargs.get("user_id"):
+        headers["X-Demo-User-ID"] = kwargs["user_id"]
+    async with create_mcp_http_client(headers=headers) as client:
+        async with streamable_http_client(url, http_client=client) as (read, write):
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                tools = {tool.name: tool for tool in (await session.list_tools()).tools}
+                yield session, tools
 
 
 async def test_real_mcp_discovery_and_calls(mcp_url):
     async with connect(mcp_url) as (session, tools):
-        assert len(tools) == 10
+        assert len(tools) == 13
         assert {
             name for name, tool in tools.items() if tool.annotations.read_only_hint
         } == READ_TOOLS
@@ -105,7 +119,9 @@ async def test_real_mcp_discovery_and_calls(mcp_url):
 
 
 async def test_chat_write_then_cross_system_read(mcp_url, monkeypatch, seeded):
-    monkeypatch.setattr(chat_service, "mcp_connection", lambda: connect(mcp_url))
+    monkeypatch.setattr(
+        chat_service, "mcp_connection", lambda **kwargs: connect(mcp_url, **kwargs)
+    )
     sequence = [
         {
             "role": "assistant",
@@ -145,7 +161,7 @@ async def test_chat_write_then_cross_system_read(mcp_url, monkeypatch, seeded):
     ]
 
     async def model(messages, definitions=None):
-        assert len(definitions) == 10
+        assert len(definitions) == 13
         return sequence.pop(0)
 
     monkeypatch.setattr(chat_service, "ask_model", model)
@@ -227,7 +243,9 @@ async def test_item_owner_lookup_over_mcp(mcp_url, seeded):
 
 
 async def test_chat_discovers_and_uses_owner_lookup(mcp_url, monkeypatch):
-    monkeypatch.setattr(chat_service, "mcp_connection", lambda: connect(mcp_url))
+    monkeypatch.setattr(
+        chat_service, "mcp_connection", lambda **kwargs: connect(mcp_url, **kwargs)
+    )
 
     async def model(messages, definitions):
         assert "inventory_get_item_owners" in {
@@ -263,7 +281,9 @@ async def test_chat_discovers_and_uses_owner_lookup(mcp_url, monkeypatch):
 
 
 async def test_dashboard_through_real_mcp(mcp_url, monkeypatch):
-    monkeypatch.setattr(dashboard_service, "mcp_connection", lambda: connect(mcp_url))
+    monkeypatch.setattr(
+        dashboard_service, "mcp_connection", lambda **kwargs: connect(mcp_url, **kwargs)
+    )
 
     async def model(messages):
         return {
@@ -350,12 +370,12 @@ async def test_dashboard_rejects_changed_or_duplicate_pages(
 
 async def test_dashboard_repair_and_failure(monkeypatch):
     @asynccontextmanager
-    async def connection():
+    async def connection(**kwargs):
         yield None, {}
 
     monkeypatch.setattr(dashboard_service, "mcp_connection", connection)
 
-    async def data(*args):
+    async def data(*args, **kwargs):
         return {"employees": [], "items": [], "assigned_items": []}, []
 
     monkeypatch.setattr(dashboard_service, "collect_datasets", data)
@@ -429,7 +449,7 @@ async def test_ai_errors_are_clear(monkeypatch):
 
 async def test_chat_limits(monkeypatch):
     @asynccontextmanager
-    async def connection():
+    async def connection(**kwargs):
         yield None, {}
 
     async def model(*args):
@@ -451,7 +471,9 @@ async def test_chat_limits(monkeypatch):
 async def test_chat_preserves_trace_when_model_fails_after_write(
     mcp_url, monkeypatch, seeded
 ):
-    monkeypatch.setattr(chat_service, "mcp_connection", lambda: connect(mcp_url))
+    monkeypatch.setattr(
+        chat_service, "mcp_connection", lambda **kwargs: connect(mcp_url, **kwargs)
+    )
     calls = 0
 
     async def model(*args):

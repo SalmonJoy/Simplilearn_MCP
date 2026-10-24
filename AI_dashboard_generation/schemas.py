@@ -1,5 +1,6 @@
 from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+from HRMS.schemas import Identifier
 
 DATASET_FIELDS = {
     "employees": {
@@ -30,6 +31,7 @@ DATASET_FIELDS = {
 class GenerateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     instruction: str = Field(min_length=1, max_length=4000)
+    user_id: Identifier | None = None
 
 
 class Widget(BaseModel):

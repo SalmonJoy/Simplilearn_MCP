@@ -63,7 +63,7 @@ async def check(cloud=False, apps=False):
                     response.raise_for_status()
                 print("PASS five application health checks")
                 async with mcp_connection() as (session, tools):
-                    assert len(tools) == 10
+                    assert len(tools) == 13
                     assert {
                         name
                         for name, tool in tools.items()

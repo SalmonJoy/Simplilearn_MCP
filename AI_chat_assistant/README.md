@@ -2,11 +2,13 @@
 
 [Project setup](../README.md#2-install-the-prerequisites) · [Previous: MCP server](../MCP_server/README.md) · [Next: Dashboard](../AI_dashboard_generation/README.md)
 
+[Streamlit chat guide](#streamlit-chat-workspace) · [Preference memory](#permanent-preference-memory) · [Tool-usage insights](../MCP_server/README.md#streamlit-tool-usage-insights) · [Git/local-file guide](../README.md#8-keep-local-files-out-of-git)
+
 This app is an MCP **host**: it accepts a user message, discovers the server's tools, gives their schemas to Ollama, executes model-requested calls through an MCP client, and displays an answer and trace. The model chooses tool requests; the host actually executes them.
 
 ## 1. Start the dependencies and app
 
-Complete the root [setup](../README.md#3-configure-mongodb-and-ollama-cloud), including the Ollama Cloud API key. Start HRMS on 8001, Inventory on 8002, and MCP on 8003. MongoDB is reached through the business APIs, never directly by this app.
+Complete the root [setup](../README.md#3-configure-mongodb-and-ollama-cloud), including the Ollama Cloud API key. Start HRMS on 8001, Inventory on 8002, and MCP on 8003. Business data reaches MongoDB through HRMS/Inventory; operational events and saved preferences belong to MCP. This app has no direct database connection. Its API/original web page runs on **8004** and its Streamlit UI on **8503**.
 
 In a separate PowerShell terminal at the repository root:
 
@@ -38,7 +40,7 @@ sequenceDiagram
     participant Model as Ollama Cloud
     Browser->>Host: POST /chat with message and history
     Host->>MCP: initialize, tools/list
-    MCP-->>Host: Ten tool schemas
+    MCP-->>Host: Thirteen tool schemas
     Host->>Model: Conversation and function definitions
     Model-->>Host: Requested tool name and arguments
     Host->>MCP: tools/call after host-side validation
@@ -70,9 +72,7 @@ When a model requests a function, `call_tool` checks that its name was discovere
 The host adds the result back to the conversation using Ollama's tool-message shape. This small source excerpt shows the important feedback step:
 
 ```python
-messages.append(
-    {"role": "tool", "tool_name": name, "content": json.dumps(data)}
-)
+messages.append({"role": "tool", "tool_name": name, "content": json.dumps(data)})
 ```
 
 Without returning results to the model, it would know what it requested but not what the tool actually found. See [Ollama's tool-calling guide](https://docs.ollama.com/capabilities/tool-calling) for the underlying message flow.
@@ -116,9 +116,37 @@ Browser history lives in JavaScript memory and disappears on reload or **Clear c
 
 `ChatRequest` allows a 1–4000-character message and up to 40 history entries, each with role `user` or `assistant` and content up to 20,000 characters. Unknown request fields are rejected.
 
+## Streamlit chat workspace
+
+The original page on 8004 remains available. For a native Streamlit interface, complete the [root setup](../README.md#2-install-the-prerequisites), start all five FastAPI services, and configure Ollama Cloud on the backend. Launch from a separate PowerShell terminal at the repository root:
+
+```powershell
+.venv\Scripts\python.exe -m streamlit run AI_chat_assistant/ui/main.py --server.address 127.0.0.1 --server.port 8503
+```
+
+Open [Streamlit chat](http://127.0.0.1:8503). Ctrl+C stops this UI. `CHAT_URL` defaults to `http://127.0.0.1:8004`; optional overrides belong in the existing root `.env`. The UI requires no separate API key and never calls MCP or Ollama directly. The purple theme is shared with HRMS through the root Streamlit configuration.
+
+1. Click **Laptop owners**, a read-only suggestion. The UI posts `{message, history}` to the existing `/chat` endpoint.
+2. Read the answer and expand **MCP trace**. Each returned entry shows the tool name, arguments, result and completion/error status. These are actual returned tool calls, not model reasoning or simulated live steps.
+3. Ask a follow-up. The UI sends the latest 40 successful user/assistant history messages, capped at 20,000 characters each; the prompt limit is 4,000 characters. Trace payloads are not sent as history.
+4. Choose **New conversation** to clear session history and errors. Streamlit session state survives ordinary reruns but is not a durable conversation store.
+
+The input is disabled while a request runs. Replies are non-streaming; long tool loops may take several minutes. The UI allows a 3,000-second read timeout to accommodate the backend's existing limits, and never retries automatically. Failed prompt text remains visible for copying and editing. If a request fails, some writes may already have completed: read the affected records before repeating a change. Successful answers and traces are replayed from session state without resubmitting requests.
+
+Writes still depend on the existing model instructions described below. There is no additional confirmation or authorization layer in this learning UI.
+
+| Module | Responsibility |
+|---|---|
+| [ui/main.py](ui/main.py) | Native chat layout, suggestions and explicit request handling |
+| [ui/state.py](ui/state.py) | Successful turns, clear action and bounded API history |
+| [ui/components.py](ui/components.py) / [schemas.py](ui/schemas.py) | Answer/trace display and typed response validation |
+| [ui/services/chat_client.py](ui/services/chat_client.py) | One HTTP call to the existing chat API |
+
+Run `.venv\Scripts\python.exe -m pytest -q tests/test_streamlit_workspaces.py` for mocked HTTP/AppTest checks without Cloud usage. For connection errors, verify the chat backend on 8004 first, then MCP, business APIs and Ollama settings. An invalid-response error means the returned JSON did not match the expected answer/trace structure. For occupied port 8503, stop the previous UI; changing this port does not change `CHAT_URL`.
+
 ## 4. Understand writes and limits
 
-Chat discovers all ten tools, including four writes. An explicit request such as "Change EMP900's department to Finance" can persist a change if that dummy employee exists. Before trying this, create the fictional record in the [HRMS write exercise](../HRMS/README.md#optional-write-exercise-create-and-update-a-fictional-employee). Verify the result with a read request.
+Chat discovers all thirteen tools, including four business writes and two preference writes. An explicit request such as "Change EMP900's department to Finance" can persist a change if that dummy employee exists. Before trying this, create the fictional record in the [HRMS write exercise](../HRMS/README.md#optional-write-exercise-create-and-update-a-fictional-employee). Verify the result with a read request.
 
 The system prompt asks the model to clarify missing fields, resolve ambiguous names, avoid writes for read-only questions, and re-read after uncertain write errors. These are model instructions, not a separate authorization mechanism. Tool schemas and business API validation enforce input and state rules; production authentication is outside this project.
 
@@ -126,12 +154,36 @@ Current constants in [config.py](config.py) are **25 model rounds** and **20 too
 
 If the model fails after tools ran, the service returns the trace with a message that requested changes may have completed. Neither the app nor the REST adapter automatically retries writes. Read the affected employee or item before retrying.
 
+## Permanent preference memory
+
+In Streamlit, enter **Demo user ID** (for example `alice`) in the sidebar and click **Use profile**. The original HTML page has an optional demo-user input too. Both interfaces send optional `user_id` in `/chat`; omit it for anonymous use with memory disabled. IDs allow 1–50 letters, digits, underscores or hyphens and are case-sensitive. They identify local demo profiles, not authenticated users.
+
+An identified request calls `memory_get_preferences` through MCP before asking the model. It loads both `chat` and `dashboard` preference maps. This initial call is included in the visible trace and the existing twenty-tool-call budget. MCP gets identity from `X-Demo-User-ID`, not from model-generated arguments, and saves preferences in its own MongoDB collection. The host also sends source and request-group headers for usage statistics.
+
+Try these examples; the first two **persist preferences**, and the last **deletes a preference**:
+
+1. “Remember that I prefer concise answers.”
+2. “Remember for dashboards that I prefer bar charts.”
+3. Start **New conversation**, then ask “What are my saved preferences?”
+4. “Forget my concise-answer preference.”
+
+Saving and deleting require explicit latest-message intent under the existing model-instruction policy. Preferences are scoped key/value presentation defaults, not conversation transcripts. Current user instructions and business rules take precedence. New conversation clears local turns while retaining the selected ID and MongoDB preferences. Changing the ID clears the local conversation and errors; it does not delete either profile's saved preferences. Anyone who supplies an ID can use that profile in this learning version.
+
+The request remains backward compatible:
+
+```json
+{"user_id": "alice", "message": "Explain MCP briefly.", "history": []}
+```
+
+If memory cannot be read, the identified request stops with `503` before a model request. A failed or uncertain memory write appears as a tool error; read preferences before retrying. All tool calls, including memory, produce metadata-only usage events with 90-day retention. Inspect them through the [statistics API](../MCP_server/README.md#mongodb-usage-events-and-preference-memory).
+
 ## 5. Verify and troubleshoot
 
 Run offline host/transport tests from the root:
 
 ```powershell
 .venv\Scripts\python.exe -m pytest -q tests/test_mcp_and_ai.py
+.venv\Scripts\python.exe -m pytest -q tests/test_mcp_memory_and_usage.py
 ```
 
 These use mocked model responses and an in-memory business database. For explicit live Cloud tests with all apps running, see [root verification](../README.md#7-verify-and-troubleshoot). They consume model usage.

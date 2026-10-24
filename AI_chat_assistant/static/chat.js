@@ -4,6 +4,13 @@ const form = document.querySelector("#chat-form"),
   statusEl = document.querySelector("#status"),
   send = document.querySelector("#send");
 let history = [];
+const demoUser = document.querySelector("#demo-user");
+demoUser.addEventListener("change", () => {
+  history = [];
+  messages.replaceChildren();
+  input.value = "";
+  statusEl.textContent = "Profile changed. Saved preferences load on your next request.";
+});
 function append(role, text) {
   const node = document.createElement("article");
   node.className = `message ${role}`;
@@ -37,16 +44,22 @@ form.addEventListener("submit", async (event) => {
   event.preventDefault();
   const message = input.value.trim();
   if (!message || send.disabled) return;
+  const userId = demoUser.value.trim();
+  if (userId && !/^[A-Za-z0-9_-]{1,50}$/.test(userId)) {
+    statusEl.textContent = "Use 1–50 letters, digits, underscores or hyphens for the demo user ID.";
+    return;
+  }
   append("user", message);
   input.value = "";
   send.disabled = true;
+  demoUser.disabled = true;
   statusEl.className = "";
   statusEl.textContent = "Discovering tools and working on your request…";
   try {
     const response = await fetch("/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, history: history.slice(-40) }),
+      body: JSON.stringify({ message, history: history.slice(-40), user_id: userId || null }),
     });
     const data = await response.json();
     if (!response.ok)
@@ -69,6 +82,7 @@ form.addEventListener("submit", async (event) => {
       "Check the services and try again. Review records before repeating a write.";
   } finally {
     send.disabled = false;
+    demoUser.disabled = false;
     input.focus();
   }
 });

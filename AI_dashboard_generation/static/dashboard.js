@@ -4,6 +4,18 @@ const form = document.querySelector("#dashboard-form"),
   statusEl = document.querySelector("#status"),
   grid = document.querySelector("#dashboard");
 let charts = [];
+const demoUser = document.querySelector("#demo-user");
+demoUser.addEventListener("change", () => {
+  charts.forEach((chart) => chart.destroy());
+  charts = [];
+  grid.replaceChildren();
+  input.value = "";
+  document.querySelector("#title").textContent = "";
+  document.querySelector("#note").textContent = "";
+  document.querySelector("#trace").hidden = true;
+  document.querySelector("#trace pre").textContent = "";
+  statusEl.textContent = "Profile changed. Generate a dashboard to load its saved preferences.";
+});
 document.querySelectorAll("[data-prompt]").forEach((node) =>
   node.addEventListener("click", () => {
     input.value = node.dataset.prompt;
@@ -88,7 +100,13 @@ function render(widget) {
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (button.disabled) return;
+  const userId = demoUser.value.trim();
+  if (userId && !/^[A-Za-z0-9_-]{1,50}$/.test(userId)) {
+    statusEl.textContent = "Use 1–50 letters, digits, underscores or hyphens for the demo user ID.";
+    return;
+  }
   button.disabled = true;
+  demoUser.disabled = true;
   statusEl.className = "meta";
   statusEl.textContent =
     "Fetching complete datasets through MCP and generating your layout…";
@@ -96,7 +114,7 @@ form.addEventListener("submit", async (event) => {
     const response = await fetch("/dashboards/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ instruction: input.value }),
+      body: JSON.stringify({ instruction: input.value, user_id: userId || null }),
     });
     const data = await response.json();
     if (!response.ok)
@@ -126,5 +144,6 @@ form.addEventListener("submit", async (event) => {
       "Generation failed. Any dashboard still displayed is from the previous successful request.";
   } finally {
     button.disabled = false;
+    demoUser.disabled = false;
   }
 });
